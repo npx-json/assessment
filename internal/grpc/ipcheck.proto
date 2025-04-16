@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package ipcheckpb;
+
+option go_package = "internal/grpc/ipcheckpb";
+
+message CheckRequest {
+  string ip = 1;
+  repeated string allowed_countries = 2;
+}
+
+message CheckResponse {
+  bool allowed = 1;
+  string country = 2;
+}
+
+service IpChecker {
+  rpc CheckIP(CheckRequest) returns (CheckResponse);
+}
