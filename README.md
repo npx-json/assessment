@@ -18,21 +18,19 @@ This deployment consists of two main components: the **IP check service** and th
 
 When a request hits the IP check service, the following happens:
 
-1. Extract IP Address
-   When a request is received, the service extracts the IP address from it.
+1. **Extract IP Address**  
+   The service extracts the IP address from the request.
 
-2. Fetch Allowed Country Codes
-   The service queries a MySQL database to retrieve the list of allowed country codes from the whitelisted_tb table. These are stored as ISO country codes.
+2. **Fetch Allowed Country Codes**  
+   The service queries a MySQL database to retrieve the list of allowed country codes from the `whitelisted_tb` table. These are stored as ISO country codes.
 
-3. gRPC Verification
-   The service then sends the extracted IP address and the list of allowed country codes to a gRPC API.
+3. **gRPC Verification**  
+   The service then sends the extracted IP address and the list of allowed country codes to a gRPC API.  
    The gRPC service performs the country lookup for the IP and determines whether the IP belongs to an allowed country.
 
-4. Response Handling
-
-If the gRPC service returns allowed, the service responds with HTTP 200 (OK).
-
-If not allowed, the service responds with HTTP 417 (Expectation Failed).
+4. **Response Handling**
+   - If the gRPC service returns "allowed", the service responds with HTTP 200 (OK).
+   - If not allowed, the service responds with HTTP 417 (Expectation Failed).
 
 Both the IP check service and MySQL database are deployed as separate containers (or Pods in Kubernetes) and communicate over the network. In the provided Kubernetes setup, they are in the same namespace and the IP check service uses the DNS name of the MySQL service to connect. The MySQL database persists the allowlist in a volume, so that allowed countries remain saved across restarts.
 
@@ -45,16 +43,18 @@ Both the IP check service and MySQL database are deployed as separate containers
 
 You can run this service either with Docker (for local testing) or deploy it to a Kubernetes cluster and docker-composer . Below are instructions for both methods.
 
-### Running with Docker (Standalone)
+# Running with Docker (Standalone)
 
-# ```bash
-
-git clone https://github.com/npx-json/assessment.git
-cd assessment
+```
 docker compose up -d
-or
+```
+
+# or for Kubernetes:
+
+```
 minikube start
 kubectl apply -f ipcheck.yaml
+```
 
 ### API Usage
 
@@ -87,4 +87,4 @@ HTTP 417 Usage: The service uses HTTP status code 417 (“Expectation Failed”)
 As described, the automatic update feature for the GeoLite2 database is not active. This means the accuracy of IP-to-country mapping will degrade over time until the database is updated manually. In a future iteration, providing a secure way to supply the MaxMind license key (e.g., via Kubernetes Secret or environment variable) and enabling periodic updates would make maintenance easier.
 Despite these limitations, the service is functional for basic IP country filtering. It can be improved and extended as needed – for example, adding per-customer allowlists, integrating a UI for management, using an API gateway to handle external access, or improving the error responses with JSON output. For now, it provides a simple, containerized solution for country-based IP filtering.
 
-**The auto-update process requires a license key, but I don't have access to it. So, I implemented the auto-update logic but left it disabled.**
+Note: The auto-update process requires a license key, but I don't have access to it. So, I implemented the auto-update logic but left it disabled.
