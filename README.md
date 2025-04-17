@@ -60,7 +60,10 @@ kubectl apply -f k8s-deployment.yaml
 
 Once the service is running, you can use the HTTP API to check IP addresses. The service listens for HTTP GET requests at the /check endpoint. You should provide the IP address to check as a query parameter. For example:
 Allow check (example): Suppose you have added “US” to the allowed countries. Checking an IP from the United States should return a success:
-curl "http://localhost:8080/check"
+
+```
+curl "http://{server_ip}:8080/check"
+```
 
 If "US" is in the allowlist, the service will respond with HTTP 200 OK (allowed). The response body may be empty (the significance is in the status code).
 Deny check (example): If you check an IP that is not from an allowed country (or if the allowlist is empty), you will get a failure response.
