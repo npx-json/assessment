@@ -35,7 +35,7 @@ func MakeCheckHandler(s *geoip.Server) http.HandlerFunc {
 		// Fetch allowed countries from the database
 		allowedCountries, err := GetAllowedCountries()
 		if err != nil {
-			http.Error(w, "Error fetching allowed countries: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Error fetching allowed countries: "+err.Error(), http.StatusExpectationFailed)
 			return
 		}
 
@@ -43,7 +43,7 @@ func MakeCheckHandler(s *geoip.Server) http.HandlerFunc {
 		allowed, country, err := s.CheckIP(req.IP, allowedCountries)
 
 		if err != nil {
-			http.Error(w, "Error checking IP: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Error checking IP: "+err.Error(), http.StatusExpectationFailed)
 			return
 		}
 
