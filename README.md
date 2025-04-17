@@ -91,3 +91,4 @@ As described, the automatic update feature for the GeoLite2 database is not acti
 Despite these limitations, the service is functional for basic IP country filtering. It can be improved and extended as needed – for example, adding per-customer allowlists, integrating a UI for management, using an API gateway to handle external access, or improving the error responses with JSON output. For now, it provides a simple, containerized solution for country-based IP filtering.
 
 Note: The auto-update process requires a license key, but I don't have access to it. So, I implemented the auto-update logic but left it disabled.
+I wrote the README file with the assistance of GPT, and all the additional coding was done by me.
