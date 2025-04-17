@@ -53,7 +53,7 @@ docker compose up -d
 
 ```
 minikube start
-kubectl apply -f ipcheck.yaml
+kubectl apply -f k8s-deployment.yaml
 ```
 
 ### API Usage
