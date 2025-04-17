@@ -1,0 +1,223 @@
+# Secret: MySQL credentials and DSN for the IP check service
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql-secret
+type: Opaque
+stringData:
+  MYSQL_ROOT_PASSWORD: "root" # Root password for MySQL (example only, change for security)
+  MYSQL_USER: "avoxi" # MySQL username for the application
+  MYSQL_PASSWORD: "root" # MySQL user password (example only)
+  MYSQL_DATABASE: "avoxi" # Database name to create/use
+  MYSQL_DSN: "avoxi:root@tcp(mysql:3306)/avoxi" # DSN for app to connect to MySQL (user:pass@tcp(host:port)/db)
+
+---
+# Persistent volume claim: storage for MySQL data
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# ConfigMap: MySQL initialization script to create the allowed_countries table
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-initdb
+data:
+  init.sql: |
+    -- Create allowed_countries table if it doesn't exist
+    CREATE DATABASE IF NOT EXISTS avoxi;
+    USE avoxi;
+    CREATE TABLE IF NOT EXISTS whitelisted_tb (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      country VARCHAR(255) NOT NULL UNIQUE
+    );
+
+---
+# Deployment: MySQL database
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  labels:
+    app: mysql
+    tier: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+        tier: database
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0 # Official MySQL 8.x image
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_ROOT_PASSWORD
+            - name: MYSQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_DATABASE
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_USER
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_PASSWORD
+          ports:
+            - name: mysql
+              containerPort: 3306
+          volumeMounts:
+            - name: mysql-data
+              mountPath: /var/lib/mysql # MySQL data directory
+            - name: initdb-script
+              mountPath: /docker-entrypoint-initdb.d/init.sql # Initialization SQL script
+              subPath: init.sql
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "512Mi"
+          livenessProbe:
+            exec:
+              command:
+                [
+                  "sh",
+                  "-c",
+                  "mysqladmin ping -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD",
+                ]
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            exec:
+              command:
+                [
+                  "sh",
+                  "-c",
+                  "mysqladmin ping -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD",
+                ]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: mysql-data
+          persistentVolumeClaim:
+            claimName: mysql-pvc
+        - name: initdb-script
+          configMap:
+            name: mysql-initdb
+
+---
+# Service: MySQL (cluster-internal)
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  labels:
+    app: mysql
+spec:
+  selector:
+    app: mysql
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: 3306
+  type: ClusterIP
+
+---
+# Deployment: IP check microservice
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ip-check-service
+  labels:
+    app: ip-check-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ip-check-service
+  template:
+    metadata:
+      labels:
+        app: ip-check-service
+    spec:
+      containers:
+        - name: ip-check-service
+          image: ip-check-service:latest # Use the Docker image built for the Go service
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MYSQL_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_DSN
+            # (Optional) You can set HTTP_PORT or GRPC_PORT here if deviating from defaults
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: grpc
+              containerPort: 9090
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "200Mi"
+          livenessProbe:
+            tcpSocket:
+              port: http # Check that the HTTP port is reachable
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            tcpSocket:
+              port: http # Service is ready when HTTP port is accessible
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+---
+# Service: IP check microservice (exposes HTTP and gRPC ports internally)
+apiVersion: v1
+kind: Service
+metadata:
+  name: ip-check-service
+  labels:
+    app: ip-check-service
+spec:
+  selector:
+    app: ip-check-service
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+    - name: grpc
+      port: 9090
+      targetPort: 9090
+  type: ClusterIP

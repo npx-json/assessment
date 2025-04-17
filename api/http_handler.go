@@ -61,7 +61,7 @@ func MakeCheckHandler(s *geoip.Server) http.HandlerFunc {
 }
 
 func GetAllowedCountries() ([]string, error) {
-	rows, err := sqlDb.Query("SELECT country FROM whitelisted_db")
+	rows, err := sqlDb.Query("SELECT country FROM whitelisted_tb")
 	if err != nil {
 		return nil, err
 	}

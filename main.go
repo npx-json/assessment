@@ -106,7 +106,7 @@ func connectToMySQL() (*sql.DB, error) {
 	// Replace with your MySQL connection details
 	dsn := os.Getenv("MYSQL_DSN") // Example: "user:password@tcp(localhost:3306)/dbname"
 	if dsn == "" {
-		dsn = "avoxi:root@tcp(127.0.0.1:3306)/avoxi"
+		dsn = "avoxi:root@tcp(mysql:3306)/avoxi"
 	}
 
 	db, err := sql.Open("mysql", dsn)

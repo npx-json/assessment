@@ -1,51 +1,38 @@
-# Build stage
-FROM golang:1.22.0-alpine AS builder
+# Multi-stage build for the Go IP check service
+FROM golang:1.22-alpine AS builder
+
+# Set working directory for the build
 WORKDIR /app
 
-# Install build dependencies
+# Install git (needed to download Go module dependencies if not vendored)
 RUN apk add --no-cache git
 
-# Copy and download Go modules
+# Copy go.mod and go.sum and download dependencies
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy the application source code
+# Copy the rest of the application's source code
 COPY . .
 
-# Copy the GeoLite2-Country.mmdb into the container
-COPY GeoLite2-Country.mmdb ./GeoLite2-Country.mmdb
+# Build the Go application (statically linked binary for Linux)
+ENV CGO_ENABLED=0
+RUN go build -ldflags="-s -w" -o /app/ip-check-service ./main.go
 
-# Build the Go application
-RUN go build -o ipcheck ./main.go
+# Second stage: create a minimal image for running the service
+FROM scratch
 
-# Final stage
-FROM alpine:3.17
-WORKDIR /root/
+# Set working directory in the final image
+WORKDIR /app
 
-# Install MySQL server and client
-RUN apk add --no-cache mysql mysql-client openrc
+# Copy the compiled binary and GeoLite2 database from the builder stage
+COPY --from=builder /app/ip-check-service .
+COPY --from=builder /app/GeoLite2-Country.mmdb .
 
-# Copy the built application from the builder stage
-COPY --from=builder /app/ipcheck .
+# Use an unprivileged user for security (use numeric UID since scratch has no /etc/passwd)
+USER 65534
 
-# Copy the GeoLite2-Country.mmdb into the container
-COPY GeoLite2-Country.mmdb ./GeoLite2-Country.mmdb
+# Expose HTTP and gRPC ports
+EXPOSE 8080 9090
 
-# Copy a MySQL configuration file (optional)
-COPY my.cnf /etc/mysql/my.cnf
-
-# Copy a MySQL initialization script
-COPY mysql-init.sql /docker-entrypoint-initdb.d/mysql-init.sql
-
-# Initialize MySQL data directory
-RUN mkdir -p /var/lib/mysql /var/run/mysqld && \
-    chown -R mysql:mysql /var/lib/mysql /var/run/mysqld && \
-    mysql_install_db --user=mysql --datadir=/var/lib/mysql
-
-# Expose ports for HTTP, gRPC, and MySQL
-EXPOSE 8080 9090 3306
-
-
-
-# Start both MySQL and the Go application
-CMD ["sh", "-c", "mysqld_safe --datadir=/var/lib/mysql & ./ipcheck"]
+# Run the service by default
+ENTRYPOINT ["./ip-check-service"]
